@@ -4,7 +4,7 @@ pipeline {
     environment {
         registry = "innovativeacademy/appcontainer"
         registryCredentials = 'Dockerhub'
-        dbHostname = "mysql-service"
+        dbHostname = "mysql-service"  // Internal ClusterIP service name
     }
 
     stages {
@@ -19,8 +19,10 @@ pipeline {
                 script {
                     catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                         sh """
+                            echo "Updating application.properties with mysql-service..."
                             sed -i 's|mysql-service|${dbHostname}|g' src/main/resources/application.properties
-                            grep -q '${dbHostname}' src/main/resources/application.properties || echo 'new_property=${dbHostname}' >> src/main/resources/application.properties
+                            echo "Updated application.properties:"
+                            cat src/main/resources/application.properties
                         """
                     }
                 }
@@ -45,6 +47,7 @@ pipeline {
             steps {
                 script {
                     catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                        echo "Building Docker image..."
                         dockerImage = docker.build "${registry}:innovative_${BUILD_ID}"
                     }
                 }
@@ -55,6 +58,7 @@ pipeline {
             steps {
                 script {
                     catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                        echo "Pushing Docker image..."
                         docker.withRegistry('', registryCredentials) {
                             dockerImage.push("innovative_${BUILD_ID}")
                             dockerImage.push('latest')
@@ -68,6 +72,7 @@ pipeline {
             agent { label 'KOPS' }
             steps {
                 catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                    echo "Deploying to Kubernetes..."
                     sh """
                         helm upgrade --install --force vprofile-stack helm/tomcatcharts \
                         --set appimage=${registry}:innovative_${BUILD_ID} \
