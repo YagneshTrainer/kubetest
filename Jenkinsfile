@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        registry = "innovativeacademy/appcontainer:V1"
+        registry = "innovativeacademy/appcontainer"
         registryCredentials = 'Dockerhub'
         dbHostname = "mysql-service"
     }
@@ -17,18 +17,27 @@ pipeline {
         stage('Modify Properties File') {
             steps {
                 script {
-                    // Use sed to replace or add properties in application.properties
-                    sh "sed -i 's|mysql-service|${dbHostname}|g' src/main/resources/application.properties"
-
-                    // Check if the property exists and add it if it doesn't
-                    sh "grep -q '${dbHostname}' src/main/resources/application.properties || echo 'new_property=${dbHostname}' >> src/main/resources/application.properties"
+                    try {
+                        sh """
+                            sed -i 's|mysql-service|${dbHostname}|g' src/main/resources/application.properties
+                            grep -q '${dbHostname}' src/main/resources/application.properties || echo 'new_property=${dbHostname}' >> src/main/resources/application.properties
+                        """
+                    } catch (Exception e) {
+                        echo "Error modifying properties file: ${e.getMessage()}"
+                        throw e
+                    }
                 }
             }
         }
 
         stage('Build') {
             steps {
-                sh 'mvn clean install -DskipTests'
+                try {
+                    sh 'mvn clean install -DskipTests'
+                } catch (Exception e) {
+                    echo "Error building the project: ${e.getMessage()}"
+                    throw e
+                }
             }
             post {
                 success {
@@ -41,7 +50,12 @@ pipeline {
         stage('Build App Image') {
             steps {
                 script {
-                    dockerImage = docker.build "${registry}:Innovative${BUILD_ID}"
+                    try {
+                        dockerImage = docker.build "${registry}:innovative_${BUILD_ID}"
+                    } catch (Exception e) {
+                        echo "Error building Docker image: ${e.getMessage()}"
+                        throw e
+                    }
                 }
             }
         }
@@ -49,9 +63,14 @@ pipeline {
         stage('Upload Image') {
             steps {
                 script {
-                    docker.withRegistry('', registryCredentials) {
-                        dockerImage.push("Innovative${BUILD_ID}")
-                        dockerImage.push('latest')
+                    try {
+                        docker.withRegistry('', registryCredentials) {
+                            dockerImage.push("innovative_${BUILD_ID}")
+                            dockerImage.push('latest')
+                        }
+                    } catch (Exception e) {
+                        echo "Error pushing Docker image: ${e.getMessage()}"
+                        throw e
                     }
                 }
             }
@@ -60,7 +79,16 @@ pipeline {
         stage('Kubernetes Deploy') {
             agent { label 'KOPS' }
             steps {
-                sh "helm upgrade --install --force vprofile-stack helm/tomcatcharts --set appimage=${registry}:Innovative${BUILD_ID} --namespace prod"
+                try {
+                    sh """
+                        helm upgrade --install --force vprofile-stack helm/tomcatcharts \
+                        --set appimage=${registry}:innovative_${BUILD_ID} \
+                        --namespace prod
+                    """
+                } catch (Exception e) {
+                    echo "Error deploying to Kubernetes: ${e.getMessage()}"
+                    throw e
+                }
             }
         }
     }
