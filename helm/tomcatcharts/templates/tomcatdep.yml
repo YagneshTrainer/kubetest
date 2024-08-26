@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tomcat-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tomcatapp
+  template:
+    metadata:
+      labels:
+        app: tomcatapp
+    spec:
+      containers:
+      - name: tomcatapp
+        image: {{ .Values.appimage }}
+        ports:
+          - containerPort: 8080
+        resources:
+          requests:
+            cpu: "250m"
+          limits:
+            cpu: "500m"
+
