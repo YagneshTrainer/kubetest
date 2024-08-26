@@ -17,14 +17,11 @@ pipeline {
         stage('Modify Properties File') {
             steps {
                 script {
-                    try {
+                    catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                         sh """
                             sed -i 's|mysql-service|${dbHostname}|g' src/main/resources/application.properties
                             grep -q '${dbHostname}' src/main/resources/application.properties || echo 'new_property=${dbHostname}' >> src/main/resources/application.properties
                         """
-                    } catch (Exception e) {
-                        echo "Error modifying properties file: ${e.getMessage()}"
-                        throw e
                     }
                 }
             }
@@ -32,11 +29,8 @@ pipeline {
 
         stage('Build') {
             steps {
-                try {
+                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                     sh 'mvn clean install -DskipTests'
-                } catch (Exception e) {
-                    echo "Error building the project: ${e.getMessage()}"
-                    throw e
                 }
             }
             post {
@@ -50,11 +44,8 @@ pipeline {
         stage('Build App Image') {
             steps {
                 script {
-                    try {
+                    catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                         dockerImage = docker.build "${registry}:innovative_${BUILD_ID}"
-                    } catch (Exception e) {
-                        echo "Error building Docker image: ${e.getMessage()}"
-                        throw e
                     }
                 }
             }
@@ -63,14 +54,11 @@ pipeline {
         stage('Upload Image') {
             steps {
                 script {
-                    try {
+                    catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                         docker.withRegistry('', registryCredentials) {
                             dockerImage.push("innovative_${BUILD_ID}")
                             dockerImage.push('latest')
                         }
-                    } catch (Exception e) {
-                        echo "Error pushing Docker image: ${e.getMessage()}"
-                        throw e
                     }
                 }
             }
@@ -79,15 +67,12 @@ pipeline {
         stage('Kubernetes Deploy') {
             agent { label 'KOPS' }
             steps {
-                try {
+                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                     sh """
                         helm upgrade --install --force vprofile-stack helm/tomcatcharts \
                         --set appimage=${registry}:innovative_${BUILD_ID} \
                         --namespace prod
                     """
-                } catch (Exception e) {
-                    echo "Error deploying to Kubernetes: ${e.getMessage()}"
-                    throw e
                 }
             }
         }
