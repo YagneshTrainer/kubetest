@@ -20,7 +20,7 @@ pipeline {
                     catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                         sh """
                             echo "Updating application.properties with mysql-service..."
-                            sed -i 's|mysql-service|${dbHostname}|g' src/main/resources/application.properties
+                            sed -i 's|innovative.cuklu9atnt3c.ap-south-1.rds.amazonaws.com|${dbHostname}|g' src/main/resources/application.properties
                             echo "Updated application.properties:"
                             cat src/main/resources/application.properties
                         """
